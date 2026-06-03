@@ -1,0 +1,78 @@
+version: '3'
+
+vars:
+  DIST_DIR: '{{.ROOT_DIR}}/dist'
+  TOOLS_DIR: '{{.ROOT_DIR}}/bin'
+  RR_BIN: '{{.DIST_DIR}}/rr'
+  VELOX_TOML: '{{.ROOT_DIR}}/.example.velox.toml'
+
+tasks:
+  default:
+    desc: "Lint + unit tests (the default pre-push gate)"
+    cmds:
+      - task --list
+
+  go:
+    desc: "Run all Go-related tasks"
+    cmds:
+      - task: go:tidy
+      - task: go:fmt
+      - task: go:lint
+      - task: go:test
+
+  go:tidy:
+    desc: "go mod tidy"
+    cmds: [go mod tidy]
+
+  go:fmt:
+    desc: "Apply formatters (gofumpt) via golangci-lint"
+    cmds: [golangci-lint fmt ./...]
+
+  go:lint:
+    desc: "golangci-lint"
+    cmds: [golangci-lint run ./...]
+
+  go:lint:fix:
+    desc: "golangci-lint with --fix"
+    cmds: [golangci-lint run --fix ./...]
+
+  go:test:
+    desc: "Unit tests (race-enabled, cache disabled)"
+    cmds:
+      - go test -race -count=1 ./...
+
+  rr:build:
+    desc: "Build a local rr binary with this plugin baked in"
+    cmds:
+      - mkdir -p {{.DIST_DIR}}
+      - GITHUB_TOKEN="$(gh auth token)" vx build -c {{.VELOX_TOML}} -o {{.DIST_DIR}}
+
+  worker:install:
+    desc: "Install PHP worker dependencies"
+    dir: '{{.ROOT_DIR}}/test/integration'
+    # sources:
+    #   - composer.json
+    # generates:
+    #   - vendor/autoload.php
+    cmds:
+      - |
+        set -eu
+        if command -v composer >/dev/null; then
+          composer install --no-interaction --no-progress --optimize-autoloader
+        else
+          [ -f composer.phar ] || curl -sSf https://getcomposer.org/installer | php -- --filename=composer.phar
+          php composer.phar install --no-interaction --no-progress --optimize-autoloader
+        fi
+
+  rr:run:
+    desc: "Build then serve test/integration/.rr.yaml from the local rr binary"
+    deps: [rr:build, worker:install]
+    dir: '{{.ROOT_DIR}}/test/integration'
+    cmds:
+      - '{{.RR_BIN}} serve -c .rr.yaml'
+
+  clean:
+    desc: "Remove generated binaries and coverage files"
+    cmds:
+      - rm -f {{.RR_BIN}} {{.VELOX_TOML}} {{.COVERAGE_OUT}}
+      - rm -rf {{.ROOT_DIR}}/dist {{.ROOT_DIR}}/coverage-ci

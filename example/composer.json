@@ -1,0 +1,18 @@
+{
+    "name": "roadrunner-otter/integration-worker",
+    "description": "PHP Worker example",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.1",
+        "spiral/roadrunner": "^2025.1",
+        "spiral/roadrunner-http": "^3.5",
+        "nyholm/psr7": "^1.8"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "composer/package-versions-deprecated": true
+        }
+    }
+}

@@ -1,0 +1,20 @@
+[velox]
+build_args = ["-trimpath", "-ldflags", "-s"]
+
+[roadrunner]
+ref = "v2025.1.14"
+
+[log]
+level = "debug"
+mode = "production"
+
+[github]
+[github.token]
+token = "${GITHUB_TOKEN}"
+
+[github.plugins]
+logger = { ref = "v5.1.9", owner = "roadrunner-server", repository = "logger" }
+server = { ref = "v5.2.10", owner = "roadrunner-server", repository = "server" }
+rpc = { ref = "v5.1.9", owner = "roadrunner-server", repository = "rpc" }
+http = { ref = "v5.3.0", owner = "roadrunner-server", repository = "http" }
+otter = { ref = "main", owner = "Y0sh1dk", repository = "roadrunner-otter" }

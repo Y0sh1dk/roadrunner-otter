@@ -1,0 +1,26 @@
+version: "3"
+
+server:
+  command: "php worker.php"
+
+http:
+  address: 0.0.0.0:8080
+  middleware: [otter]
+  pool:
+    num_workers: 1
+    max_jobs: 0
+
+otter:
+  paths:
+    - pattern: "^/api/cached$"
+      methods: [GET, HEAD]
+      cache:
+        ttl: 1m
+        max_entries: 1000
+        max_body_bytes: 67108864
+        key:
+          include_headers: [Authorization]
+
+logs:
+  mode: development
+  level: debug

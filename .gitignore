@@ -1,0 +1,17 @@
+/bin/
+/dist/
+/rr
+/.velox.toml
+/coverage.out
+/coverage-ci/
+/.idea/
+/.vscode/
+/.task
+*.test
+*.out
+
+.claude
+
+# test/integration PHP worker artifacts (managed by `task worker:install`)
+vendor
+composer.phar
