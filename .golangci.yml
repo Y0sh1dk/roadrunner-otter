@@ -1,0 +1,25 @@
+version: "2"
+linters:
+  default: all
+  disable:
+    - exhaustruct
+    - noinlineerr
+    - revive
+    - depguard
+    - err113
+    - funlen
+    - goconst
+    - gochecknoglobals
+    - paralleltest
+    - testpackage
+    - varnamelen
+    - wsl
+    - gomodguard
+  settings:
+    testifylint:
+      disable:
+        - go-require
+        - require-error
+formatters:
+  enable:
+    - gofumpt

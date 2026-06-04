@@ -1,0 +1,8 @@
+/bin/
+/dist/
+/coverage.out
+/coverage-ci/
+/.idea/
+/.vscode/
+*.test
+*.out

@@ -1,0 +1,33 @@
+version: 2
+
+# This module is a library: no binaries are built. Goreleaser is used solely
+# to publish a polished GitHub release (changelog + checksums + source archive)
+# when release-please cuts a new tag.
+
+project_name: roadrunner-singleflight
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - skip: true
+
+source:
+  enabled: true
+  name_template: "{{ .ProjectName }}-{{ .Version }}-source"
+  format: tar.gz
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  # release-please owns CHANGELOG.md; tell goreleaser not to duplicate it.
+  disable: true
+
+release:
+  github:
+    owner: Y0sh1dk
+    name: roadrunner-singleflight
+  draft: false
+  prerelease: auto
