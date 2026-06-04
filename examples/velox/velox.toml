@@ -1,0 +1,79 @@
+# Velox build config for a custom RoadRunner binary with the otter
+# cache middleware compiled in.
+#
+# >>> Why not RoadRunner v2023.3.12 exactly? <<<
+# This config originally tried to pin RR + every plugin to the versions
+# referenced by https://github.com/roadrunner-server/roadrunner/blob/v2023.3.12/go.mod
+# (the image you were using as your base). That doesn't `go mod tidy` clean
+# today: the v4 plugin series is out of maintenance, and modern `go mod tidy`
+# upgrades the transitive `sdk/v4` past what `server/v4.5.9` was built for —
+# the build fails with
+#   server/v4@... plugin.go:338:22: p.factory.SpawnWorkerWithTimeout undefined
+#   plugin.go:381:47: too many arguments in call to socket.NewSocketServer
+# Velox v2025.1.x (the current stable) has no way to lock the SDK from user
+# config to undo this. The next workable step is the v5 plugin series shipped
+# with RR v2024.x — same `.rr.yaml` schema (version: "3"), close to your
+# current behavior, and resolves cleanly. That's what's pinned below.
+#
+# If you must stay on the exact v2023.3.12 plugin set, your only options are:
+#   1. Keep using the prebuilt `ghcr.io/roadrunner-server/roadrunner:2023.3.12`
+#      image as-is (you lose this plugin).
+#   2. Wait for velox v2025.2 stable (currently beta) which adds an
+#      [[excludes]] block in velox.toml and would let you pin sdk/v4.
+
+[velox]
+build_args = ["-trimpath", "-ldflags", "-s"]
+
+[roadrunner]
+ref = "v2024.3.5"
+
+[debug]
+enabled = false
+
+[log]
+level = "info"
+mode = "production"
+
+[github]
+  [github.token]
+  token = "${GITHUB_TOKEN}"
+
+  [github.plugins]
+  # Versions taken from
+  # https://github.com/roadrunner-server/roadrunner/blob/v2024.3.5/go.mod
+  # --- Core ---
+  logger     = { ref = "v5.1.6", owner = "roadrunner-server", repository = "logger" }
+  server     = { ref = "v5.2.7", owner = "roadrunner-server", repository = "server" }
+  rpc        = { ref = "v5.1.6", owner = "roadrunner-server", repository = "rpc" }
+  status     = { ref = "v5.1.6", owner = "roadrunner-server", repository = "status" }
+  metrics    = { ref = "v5.1.6", owner = "roadrunner-server", repository = "metrics" }
+
+  # --- HTTP + middleware ---
+  http       = { ref = "v5.2.5", owner = "roadrunner-server", repository = "http" }
+  static     = { ref = "v5.1.4", owner = "roadrunner-server", repository = "static" }
+  # The prometheus plugin emits the per-request HTTP metrics middleware.
+  # In the v5 series it's registered as `prometheus`. Your .rr.yaml uses
+  # `http_metrics` (the v4-era name) — rename it to `prometheus`:
+  #   middleware: ["static", "prometheus"]
+  prometheus = { ref = "v5.1.5", owner = "roadrunner-server", repository = "prometheus" }
+  gzip       = { ref = "v5.1.6", owner = "roadrunner-server", repository = "gzip" }
+  headers    = { ref = "v5.1.6", owner = "roadrunner-server", repository = "headers" }
+  send       = { ref = "v5.1.3", owner = "roadrunner-server", repository = "send" }
+  proxy      = { ref = "v5.1.6", owner = "roadrunner-server", repository = "proxy_ip_parser" }
+
+  # --- KV (redis + memory drivers referenced in your config) ---
+  kv         = { ref = "v5.2.6", owner = "roadrunner-server", repository = "kv" }
+  redis      = { ref = "v5.1.6", owner = "roadrunner-server", repository = "redis" }
+  memory     = { ref = "v5.2.6", owner = "roadrunner-server", repository = "memory" }
+
+  # --- Jobs + SQS driver (your consumer config) ---
+  jobs       = { ref = "v5.1.6", owner = "roadrunner-server", repository = "jobs" }
+  sqs        = { ref = "v5.1.6", owner = "roadrunner-server", repository = "sqs" }
+
+  # --- 3rd-party: otter (response cache + in-flight coalescing) ---
+  # Push the plugin code to the `main` branch first; until then velox can't
+  # read a go.mod from this repo and the build fails with
+  #   ERROR  get plugins mod data  {"error": "no file named go.mod found in ."}
+  # For local-only iteration, append:
+  #   , replace = "/abs/path/to/checkout"
+  otter = { ref = "main", owner = "Y0sh1dk", repository = "roadrunner-otter" }
