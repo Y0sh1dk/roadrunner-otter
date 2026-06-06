@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/Y0sh1dk/roadrunner-otter/compare/v0.1.3...v0.1.4) (2026-06-06)
+
+
+### Features
+
+* Add default HTTP methods ([#10](https://github.com/Y0sh1dk/roadrunner-otter/issues/10)) ([b0ff4cc](https://github.com/Y0sh1dk/roadrunner-otter/commit/b0ff4ccd1269f126bec0f0b7fb42cea60b151156))
+
 ## [0.1.3](https://github.com/Y0sh1dk/roadrunner-otter/compare/v0.1.2...v0.1.3) (2026-06-06)
 
 
