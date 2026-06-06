@@ -7,11 +7,13 @@ import (
 	"slices"
 
 	"github.com/maypok86/otter/v2"
+	"github.com/maypok86/otter/v2/stats"
 )
 
 type compiledRoute struct {
 	re       *regexp.Regexp
 	disabled bool
+	label    string // metrics label (Name if set, else Pattern)
 
 	methods       []string
 	kb            *keyBuilder
@@ -60,6 +62,7 @@ func buildRouteTable(cfg *Config) (*routeTable, error) {
 		route := &compiledRoute{
 			re:       re,
 			disabled: path.Disabled,
+			label:    path.Label(),
 		}
 
 		if !path.Disabled {
@@ -70,6 +73,7 @@ func buildRouteTable(cfg *Config) (*routeTable, error) {
 			route.cache = otter.Must(&otter.Options[string, *snapshot]{
 				MaximumSize:      path.Cache.MaxEntries,
 				ExpiryCalculator: otter.ExpiryWriting[string, *snapshot](path.Cache.TTL),
+				StatsRecorder:    stats.NewCounter(),
 			})
 		}
 

@@ -50,7 +50,9 @@ otter:
         ttl: 30s
 
     # Per-user lookup: split the key by Authorization so callers don't share responses.
+    # `name` is used as the metrics `path` label — friendlier than the regex.
     - pattern: "^/api/v1/users/[^/]+$"
+      name: users
       methods: [GET, HEAD]
       cache:
         ttl: 5m
@@ -72,6 +74,7 @@ otter:
 | Path | Default | Notes |
 |---|---|---|
 | `pattern` | required | Go regex matched against `r.URL.Path` |
+| `name` | `pattern` value | Friendly label for Prometheus `path=` (see Metrics) |
 | `disabled` | `false` | Bypass; no other fields needed |
 | `methods` | required (if active) | Uppercased on load |
 | `cache.ttl` | required | `"5s"`, `"1m"`, `"100ms"` |
@@ -85,6 +88,31 @@ otter:
 
 The cache key is `METHOD<space>RequestURI[\x1fHeader=value ...]`. The query
 is always part of the key (`/feed?page=1` and `/feed?page=2` don't collide).
+
+## Metrics
+
+When the RoadRunner [`metrics`](https://docs.roadrunner.dev/docs/lab/metrics)
+plugin is enabled, otter auto-registers a Prometheus collector with it — no
+extra wiring beyond the standard block:
+
+```yaml
+metrics:
+  address: 0.0.0.0:8001
+```
+
+Per-path series (label `path` = `name` if set, otherwise the regex pattern):
+
+```
+otter_cache_hits_total{path}              # served from cache, PHP not touched
+otter_cache_misses_total{path}            # cache lookup found nothing
+otter_cache_load_successes_total{path}    # upstream load completed
+otter_cache_load_failures_total{path}     # upstream load errored (size cap, etc.)
+otter_cache_evictions_total{path}         # W-TinyLFU evictions
+otter_cache_size{path}                    # approximate current entry count
+```
+
+Use a `name` on each path you care about — regex patterns make ugly Grafana
+labels. Two active paths resolving to the same label is a startup error.
 
 ## Develop
 

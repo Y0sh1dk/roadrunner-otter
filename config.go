@@ -28,9 +28,20 @@ type Config struct {
 
 type PathConfig struct {
 	Pattern  string      `mapstructure:"pattern"`
+	Name     string      `mapstructure:"name"` // optional metrics label; falls back to Pattern
 	Disabled bool        `mapstructure:"disabled"`
 	Methods  []string    `mapstructure:"methods"`
 	Cache    CacheConfig `mapstructure:"cache"`
+}
+
+// Label returns the value used in Prometheus `path` labels. It is the
+// user-supplied Name if set, otherwise the raw regex Pattern.
+func (p PathConfig) Label() string {
+	if p.Name != "" {
+		return p.Name
+	}
+
+	return p.Pattern
 }
 
 type CacheConfig struct {
@@ -94,6 +105,29 @@ func (c *Config) Validate() error {
 		if err := validatePath(i, p); err != nil {
 			return err
 		}
+	}
+
+	return validateUniqueLabels(c.Paths)
+}
+
+func validateUniqueLabels(paths []PathConfig) error {
+	seen := make(map[string]int, len(paths))
+
+	for i, p := range paths {
+		if p.Disabled {
+			continue
+		}
+
+		label := p.Label()
+
+		if prev, ok := seen[label]; ok {
+			return fmt.Errorf(
+				"otter: paths[%d] and paths[%d] resolve to the same metrics label %q; set a unique name",
+				prev, i, label,
+			)
+		}
+
+		seen[label] = i
 	}
 
 	return nil
