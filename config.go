@@ -22,6 +22,8 @@ var defaultCacheableStatuses = []int{
 	http.StatusNotImplemented,
 }
 
+var defaultCacheableMethods = []string{http.MethodGet, http.MethodHead}
+
 type Config struct {
 	Paths []PathConfig `mapstructure:"paths"`
 }
@@ -82,6 +84,11 @@ func (c *Config) InitDefaults() {
 		// Sanitise methods
 		for idx, method := range p.Methods {
 			p.Methods[idx] = strings.ToUpper(strings.TrimSpace(method))
+		}
+
+		// Default methods
+		if len(p.Methods) == 0 {
+			p.Methods = slices.Clone(defaultCacheableMethods)
 		}
 
 		// Default max body
