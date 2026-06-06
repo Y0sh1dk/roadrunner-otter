@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/Y0sh1dk/roadrunner-otter/compare/v0.1.2...v0.1.3) (2026-06-06)
+
+
+### Features
+
+* Add Metrics ([#8](https://github.com/Y0sh1dk/roadrunner-otter/issues/8)) ([4d577f4](https://github.com/Y0sh1dk/roadrunner-otter/commit/4d577f445c6869e8c1c5e80de51fcb78725b4a36))
+
 ## [0.1.2](https://github.com/Y0sh1dk/roadrunner-otter/compare/v0.1.1...v0.1.2) (2026-06-06)
 
 
