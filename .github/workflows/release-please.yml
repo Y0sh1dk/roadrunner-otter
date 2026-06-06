@@ -1,6 +1,7 @@
 name: Release Please
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
 
@@ -17,21 +18,3 @@ jobs:
         with:
           config-file: .github/release-please-config.json
           manifest-file: .github/.release-please-manifest.json
-
-      # Hand off to goreleaser only when a real release was just cut.
-      - uses: actions/checkout@v6
-        if: ${{ steps.release.outputs.release_created }}
-
-      - uses: actions/setup-go@v6
-        if: ${{ steps.release.outputs.release_created }}
-        with:
-          go-version: stable
-
-      - uses: goreleaser/goreleaser-action@v7
-        if: ${{ steps.release.outputs.release_created }}
-        with:
-          distribution: goreleaser
-          version: latest
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
