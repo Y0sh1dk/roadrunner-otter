@@ -170,9 +170,9 @@ func TestConfig_Validate_PathRequirements(t *testing.T) {
 			want: "pattern is required",
 		},
 		{
-			name: "missing methods on active entry",
-			cfg:  Config{Paths: []PathConfig{{Pattern: "^/x"}}},
-			want: "methods is required",
+			name: "missing methods defaults to GET+HEAD",
+			cfg:  Config{Paths: []PathConfig{{Pattern: "^/x", Cache: CacheConfig{TTL: routeTestTTL}}}},
+			want: "", // empty want = expect success after InitDefaults supplies methods
 		},
 		{
 			name: "disabled entry needs no methods",

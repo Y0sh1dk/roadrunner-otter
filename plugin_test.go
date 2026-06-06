@@ -72,8 +72,9 @@ func catchAll() *Config {
 func TestPlugin_Init_DefaultsAppliedPerEntry(t *testing.T) {
 	t.Parallel()
 
-	// Methods has no default and must be supplied; max_body_bytes is the
-	// only field that still gets a default.
+	// Verify the defaulting pass: an entry that only sets the required
+	// pattern + cache.ttl picks up methods, max_body_bytes, max_entries
+	// from InitDefaults.
 	p := newPluginForTest(t, &Config{
 		Paths: []PathConfig{{
 			Pattern: "^/.*",
@@ -82,22 +83,23 @@ func TestPlugin_Init_DefaultsAppliedPerEntry(t *testing.T) {
 		}},
 	})
 	require.Len(t, p.config.Paths, 1)
-	assert.Equal(t, []string{"GET"}, p.config.Paths[0].Methods)
+	assert.Equal(t, []string{"GET"}, p.config.Paths[0].Methods, "explicit methods carry through verbatim")
 	assert.Equal(t, defaultMaxBodyBytes, p.config.Paths[0].Cache.MaxBodyBytes)
 	assert.Equal(t, defaultCacheMaxEntries, p.config.Paths[0].Cache.MaxEntries)
 }
 
-func TestPlugin_Init_MethodsRequired(t *testing.T) {
+func TestPlugin_Init_MethodsDefaultedWhenOmitted(t *testing.T) {
 	t.Parallel()
 
-	// A non-disabled entry with no Methods must fail at Init.
-	p := &Plugin{}
-	cfg := &fakeConfigurer{section: PluginName, cfg: &Config{
-		Paths: []PathConfig{{Pattern: "^/.*"}},
-	}}
-	err := p.Init(cfg, nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "methods is required")
+	// An active entry with no Methods picks up the safe-cacheable default
+	// (GET + HEAD) rather than failing validation.
+	p := newPluginForTest(t, &Config{
+		Paths: []PathConfig{{
+			Pattern: "^/.*",
+			Cache:   CacheConfig{TTL: testTTL},
+		}},
+	})
+	assert.Equal(t, []string{http.MethodGet, http.MethodHead}, p.config.Paths[0].Methods)
 }
 
 func TestPlugin_Init_DisabledEntryNeedsNoMethods(t *testing.T) {

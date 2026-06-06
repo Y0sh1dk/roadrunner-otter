@@ -76,7 +76,7 @@ otter:
 | `pattern` | required | Go regex matched against `r.URL.Path` |
 | `name` | `pattern` value | Friendly label for Prometheus `path=` (see Metrics) |
 | `disabled` | `false` | Bypass; no other fields needed |
-| `methods` | required (if active) | Uppercased on load |
+| `methods` | `[GET, HEAD]` | Uppercased on load; the default mirrors RFC 7231's safe+cacheable set |
 | `cache.ttl` | required | `"5s"`, `"1m"`, `"100ms"` |
 | `cache.max_entries` | `10000` | Per-path capacity; W-TinyLFU eviction |
 | `cache.max_body_bytes` | `8388608` (8 MiB) | Larger responses → 502, never cached |
