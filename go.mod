@@ -1,6 +1,6 @@
 module github.com/Y0sh1dk/roadrunner-otter
 
-go 1.25
+go 1.24.0
 
 require (
 	github.com/maypok86/otter/v2 v2.3.0
