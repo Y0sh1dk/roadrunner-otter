@@ -9,9 +9,6 @@ import (
 
 var errResponseTooLarge = errors.New("otter: upstream response exceeded max_body_bytes")
 
-// snapshot is the buffered upstream response that gets stored in the
-// per-route otter cache and replayed to every cache hit / coalesced
-// waiter for the same key.
 type snapshot struct {
 	status int
 	header http.Header
@@ -19,7 +16,6 @@ type snapshot struct {
 }
 
 // recorder is an http.ResponseWriter that buffers the upstream response.
-// It enforces a max body size to prevent unbounded buffering.
 type recorder struct {
 	header      http.Header
 	buf         bytes.Buffer
@@ -60,7 +56,7 @@ func (r *recorder) Write(p []byte) (int, error) {
 		// can finish without erroring out — we stash the cap error on r.err
 		// and the middleware surfaces it after ServeHTTP returns. Returning
 		// (len(p), nil) here is intentional, not a missed error.
-		return len(p), nil //nolint:nilerr // see comment above
+		return len(p), nil
 	}
 
 	if r.maxBytes > 0 && int64(r.buf.Len())+int64(len(p)) > r.maxBytes {

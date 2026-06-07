@@ -14,10 +14,10 @@ import (
 // Long enough that no test races past it.
 const routeTestTTL = 5 * time.Minute
 
-func mustBuild(t *testing.T, cfg *Config) *routeTable {
+func mustBuild(t *testing.T, cfg *config) *routeTable {
 	t.Helper()
-	cfg.InitDefaults()
-	require.NoError(t, cfg.Validate())
+	cfg.initDefaults()
+	require.NoError(t, cfg.validate())
 	rt, err := buildRouteTable(cfg)
 	require.NoError(t, err)
 
@@ -34,7 +34,7 @@ func safeMethods() []string {
 func TestRouteTable_EmptyPathsBypassesEverything(t *testing.T) {
 	t.Parallel()
 
-	rt := mustBuild(t, &Config{})
+	rt := mustBuild(t, &config{})
 	_, engage := rt.match(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/anything", nil))
 	assert.False(t, engage, "no path entries = middleware is a no-op")
 }
@@ -42,8 +42,8 @@ func TestRouteTable_EmptyPathsBypassesEverything(t *testing.T) {
 func TestRouteTable_NoMatchBypasses(t *testing.T) {
 	t.Parallel()
 
-	rt := mustBuild(t, &Config{
-		Paths: []PathConfig{{Pattern: "^/api/", Methods: safeMethods(), Cache: CacheConfig{TTL: routeTestTTL}}},
+	rt := mustBuild(t, &config{
+		Paths: []pathConfig{{Pattern: "^/api/", Methods: safeMethods(), Cache: cacheConfig{TTL: routeTestTTL}}},
 	})
 	_, engage := rt.match(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/other", nil))
 	assert.False(t, engage)
@@ -52,22 +52,22 @@ func TestRouteTable_NoMatchBypasses(t *testing.T) {
 func TestRouteTable_MatchUsesEntry(t *testing.T) {
 	t.Parallel()
 
-	rt := mustBuild(t, &Config{
-		Paths: []PathConfig{{Pattern: "^/api/", Methods: safeMethods(), Cache: CacheConfig{TTL: routeTestTTL}}},
+	rt := mustBuild(t, &config{
+		Paths: []pathConfig{{Pattern: "^/api/", Methods: safeMethods(), Cache: cacheConfig{TTL: routeTestTTL}}},
 	})
 	route, engage := rt.match(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/v1", nil))
 	require.True(t, engage)
 	assert.NotNil(t, route)
-	assert.NotNil(t, route.re)
+	assert.NotNil(t, route.regex)
 }
 
 func TestRouteTable_DisabledEntryBypasses(t *testing.T) {
 	t.Parallel()
 
-	rt := mustBuild(t, &Config{
-		Paths: []PathConfig{
+	rt := mustBuild(t, &config{
+		Paths: []pathConfig{
 			{Pattern: "^/admin/", Disabled: true},
-			{Pattern: "^/api/", Methods: safeMethods(), Cache: CacheConfig{TTL: routeTestTTL}},
+			{Pattern: "^/api/", Methods: safeMethods(), Cache: cacheConfig{TTL: routeTestTTL}},
 		},
 	})
 
@@ -81,10 +81,10 @@ func TestRouteTable_DisabledEntryBypasses(t *testing.T) {
 func TestRouteTable_FirstMatchWins(t *testing.T) {
 	t.Parallel()
 
-	rt := mustBuild(t, &Config{
-		Paths: []PathConfig{
+	rt := mustBuild(t, &config{
+		Paths: []pathConfig{
 			{Pattern: "^/api/health$", Disabled: true},
-			{Pattern: "^/api/.*", Methods: safeMethods(), Cache: CacheConfig{TTL: routeTestTTL}}, // would also match /api/health
+			{Pattern: "^/api/.*", Methods: safeMethods(), Cache: cacheConfig{TTL: routeTestTTL}}, // would also match /api/health
 		},
 	})
 	_, engage := rt.match(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/health", nil))
@@ -97,8 +97,8 @@ func TestRouteTable_FirstMatchWins(t *testing.T) {
 func TestRouteTable_PerEntryDefaultsApplied(t *testing.T) {
 	t.Parallel()
 
-	rt := mustBuild(t, &Config{
-		Paths: []PathConfig{{Pattern: "^/.*", Methods: []string{"GET"}, Cache: CacheConfig{TTL: routeTestTTL}}},
+	rt := mustBuild(t, &config{
+		Paths: []pathConfig{{Pattern: "^/.*", Methods: []string{"GET"}, Cache: cacheConfig{TTL: routeTestTTL}}},
 	})
 	r, ok := rt.match(httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil))
 	require.True(t, ok)
@@ -116,15 +116,15 @@ func TestRouteTable_PerEntryDefaultsApplied(t *testing.T) {
 func TestRouteTable_PerEntryFieldsCarryThrough(t *testing.T) {
 	t.Parallel()
 
-	rt := mustBuild(t, &Config{
-		Paths: []PathConfig{
+	rt := mustBuild(t, &config{
+		Paths: []pathConfig{
 			{
 				Pattern: "^/big/",
 				Methods: []string{"GET"},
-				Cache: CacheConfig{
+				Cache: cacheConfig{
 					TTL:          routeTestTTL,
 					MaxBodyBytes: 1 << 20, // 1 MiB
-					Key: KeyConfig{
+					KeyConfig: keyConfig{
 						IncludeHeaders: []string{"Authorization"},
 					},
 				},
@@ -147,9 +147,9 @@ func TestRouteTable_PerEntryFieldsCarryThrough(t *testing.T) {
 func TestRouteTable_BadPatternErrors(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{Paths: []PathConfig{{Pattern: "[", Methods: safeMethods(), Cache: CacheConfig{TTL: routeTestTTL}}}}
-	cfg.InitDefaults()
-	// Intentionally skip cfg.Validate() — see comment above.
+	cfg := &config{Paths: []pathConfig{{Pattern: "[", Methods: safeMethods(), Cache: cacheConfig{TTL: routeTestTTL}}}}
+	cfg.initDefaults()
+	// Intentionally skip cfg.validate() — see comment above.
 
 	_, err := buildRouteTable(cfg)
 	require.Error(t, err)
@@ -161,70 +161,70 @@ func TestConfig_Validate_PathRequirements(t *testing.T) {
 
 	cases := []struct {
 		name string
-		cfg  Config
+		cfg  config
 		want string
 	}{
 		{
 			name: "empty pattern",
-			cfg:  Config{Paths: []PathConfig{{Pattern: "", Methods: safeMethods()}}},
+			cfg:  config{Paths: []pathConfig{{Pattern: "", Methods: safeMethods()}}},
 			want: "pattern is required",
 		},
 		{
 			name: "missing methods defaults to GET+HEAD",
-			cfg:  Config{Paths: []PathConfig{{Pattern: "^/x", Cache: CacheConfig{TTL: routeTestTTL}}}},
+			cfg:  config{Paths: []pathConfig{{Pattern: "^/x", Cache: cacheConfig{TTL: routeTestTTL}}}},
 			want: "", // empty want = expect success after InitDefaults supplies methods
 		},
 		{
 			name: "disabled entry needs no methods",
-			cfg:  Config{Paths: []PathConfig{{Pattern: "^/x", Disabled: true}}},
+			cfg:  config{Paths: []pathConfig{{Pattern: "^/x", Disabled: true}}},
 			want: "", // empty want = expect success
 		},
 		{
 			name: "empty method in list",
-			cfg:  Config{Paths: []PathConfig{{Pattern: "^/x", Methods: []string{""}}}},
+			cfg:  config{Paths: []pathConfig{{Pattern: "^/x", Methods: []string{""}}}},
 			want: "empty method",
 		},
 		{
 			name: "negative cache.max_body_bytes",
-			cfg:  Config{Paths: []PathConfig{{Pattern: "^/x", Methods: safeMethods(), Cache: CacheConfig{MaxBodyBytes: -1}}}},
+			cfg:  config{Paths: []pathConfig{{Pattern: "^/x", Methods: safeMethods(), Cache: cacheConfig{MaxBodyBytes: -1}}}},
 			want: "cache.max_body_bytes",
 		},
 		{
 			name: "invalid regex pattern",
-			cfg:  Config{Paths: []PathConfig{{Pattern: "[", Methods: safeMethods(), Cache: CacheConfig{TTL: routeTestTTL}}}},
+			cfg:  config{Paths: []pathConfig{{Pattern: "[", Methods: safeMethods(), Cache: cacheConfig{TTL: routeTestTTL}}}},
 			want: "invalid pattern",
 		},
 		{
 			name: "invalid regex pattern on disabled entry",
-			cfg:  Config{Paths: []PathConfig{{Pattern: "[", Disabled: true}}},
+			cfg:  config{Paths: []pathConfig{{Pattern: "[", Disabled: true}}},
 			want: "invalid pattern", // we check even disabled entries
 		},
 		{
 			name: "missing cache.ttl on active entry",
-			cfg:  Config{Paths: []PathConfig{{Pattern: "^/x", Methods: safeMethods()}}},
+			cfg:  config{Paths: []pathConfig{{Pattern: "^/x", Methods: safeMethods()}}},
 			want: "cache.ttl is required",
 		},
 		{
 			name: "negative cache.max_entries",
-			cfg: Config{Paths: []PathConfig{{
+			cfg: config{Paths: []pathConfig{{
 				Pattern: "^/x", Methods: safeMethods(),
-				Cache: CacheConfig{TTL: routeTestTTL, MaxEntries: -1},
+				Cache: cacheConfig{TTL: routeTestTTL, MaxEntries: -1},
 			}}},
 			want: "cache.max_entries",
 		},
 		{
 			name: "empty cache.statuses (explicitly set to empty)",
-			cfg: Config{Paths: []PathConfig{{
+			cfg: config{Paths: []pathConfig{{
 				Pattern: "^/x", Methods: safeMethods(),
-				Cache: CacheConfig{TTL: routeTestTTL, Statuses: []int{}},
+				Cache: cacheConfig{TTL: routeTestTTL, Statuses: []int{}},
 			}}},
 			want: "cache.statuses",
 		},
 		{
 			name: "invalid HTTP status in cache.statuses",
-			cfg: Config{Paths: []PathConfig{{
+			cfg: config{Paths: []pathConfig{{
 				Pattern: "^/x", Methods: safeMethods(),
-				Cache: CacheConfig{TTL: routeTestTTL, Statuses: []int{200, 9999}},
+				Cache: cacheConfig{TTL: routeTestTTL, Statuses: []int{200, 9999}},
 			}}},
 			want: "invalid HTTP status",
 		},
@@ -233,9 +233,9 @@ func TestConfig_Validate_PathRequirements(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tc.cfg.InitDefaults()
+			tc.cfg.initDefaults()
 
-			err := tc.cfg.Validate()
+			err := tc.cfg.validate()
 			if tc.want == "" {
 				require.NoError(t, err)
 

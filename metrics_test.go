@@ -62,18 +62,18 @@ func gatherByPath(t *testing.T, c prometheus.Collector, metricName string) map[s
 func TestMetricsCollector_NamePreferredOverPattern(t *testing.T) {
 	t.Parallel()
 
-	p := newPluginForTest(t, &Config{
-		Paths: []PathConfig{
+	p := newPluginForTest(t, &config{
+		Paths: []pathConfig{
 			{
 				Pattern: "^/api/v1/users/[^/]+$",
 				Name:    "users",
 				Methods: []string{"GET"},
-				Cache:   CacheConfig{TTL: 5 * time.Minute},
+				Cache:   cacheConfig{TTL: 5 * time.Minute},
 			},
 			{
 				Pattern: "^/api/v1/feed$",
 				Methods: []string{"GET"},
-				Cache:   CacheConfig{TTL: 5 * time.Minute},
+				Cache:   cacheConfig{TTL: 5 * time.Minute},
 			},
 		},
 	})
@@ -88,14 +88,14 @@ func TestMetricsCollector_NamePreferredOverPattern(t *testing.T) {
 func TestMetricsCollector_DisabledPathsHaveNoMetrics(t *testing.T) {
 	t.Parallel()
 
-	p := newPluginForTest(t, &Config{
-		Paths: []PathConfig{
+	p := newPluginForTest(t, &config{
+		Paths: []pathConfig{
 			{Pattern: "^/api/health$", Name: "health", Disabled: true},
 			{
 				Pattern: "^/api/v1/feed$",
 				Name:    "feed",
 				Methods: []string{"GET"},
-				Cache:   CacheConfig{TTL: 5 * time.Minute},
+				Cache:   cacheConfig{TTL: 5 * time.Minute},
 			},
 		},
 	})
@@ -145,12 +145,12 @@ func TestMetricsCollector_HitsAndMissesAdvance(t *testing.T) {
 func TestConfig_ValidateRejectsDuplicateLabels(t *testing.T) {
 	t.Parallel()
 
-	cfg := &Config{Paths: []PathConfig{
-		{Pattern: "^/a$", Name: "shared", Methods: safeMethods(), Cache: CacheConfig{TTL: routeTestTTL}},
-		{Pattern: "^/b$", Name: "shared", Methods: safeMethods(), Cache: CacheConfig{TTL: routeTestTTL}},
+	cfg := &config{Paths: []pathConfig{
+		{Pattern: "^/a$", Name: "shared", Methods: safeMethods(), Cache: cacheConfig{TTL: routeTestTTL}},
+		{Pattern: "^/b$", Name: "shared", Methods: safeMethods(), Cache: cacheConfig{TTL: routeTestTTL}},
 	}}
-	cfg.InitDefaults()
-	err := cfg.Validate()
+	cfg.initDefaults()
+	err := cfg.validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "same metrics label")
 	assert.Contains(t, err.Error(), `"shared"`)

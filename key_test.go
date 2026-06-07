@@ -11,7 +11,7 @@ import (
 func TestKeyBuilder_MethodAndPathOnly(t *testing.T) {
 	t.Parallel()
 
-	kb := newKeyBuilder(KeyConfig{})
+	kb := newKeyBuilder(keyConfig{})
 
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "https://example.com/foo?bar=1", nil)
 	got := kb.build(r)
@@ -23,7 +23,7 @@ func TestKeyBuilder_QueryStringIncluded(t *testing.T) {
 
 	// /feed?page=1 and /feed?page=2 MUST NOT collide. This is the headline
 	// safety property of including the query in the key.
-	kb := newKeyBuilder(KeyConfig{})
+	kb := newKeyBuilder(keyConfig{})
 
 	r1 := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/feed?page=1", nil)
 	r2 := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/feed?page=2", nil)
@@ -33,7 +33,7 @@ func TestKeyBuilder_QueryStringIncluded(t *testing.T) {
 func TestKeyBuilder_MethodDistinguishes(t *testing.T) {
 	t.Parallel()
 
-	kb := newKeyBuilder(KeyConfig{})
+	kb := newKeyBuilder(keyConfig{})
 
 	get := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil)
 	head := httptest.NewRequestWithContext(t.Context(), http.MethodHead, "/x", nil)
@@ -43,7 +43,7 @@ func TestKeyBuilder_MethodDistinguishes(t *testing.T) {
 func TestKeyBuilder_IncludeHeaders(t *testing.T) {
 	t.Parallel()
 
-	kb := newKeyBuilder(KeyConfig{
+	kb := newKeyBuilder(keyConfig{
 		IncludeHeaders: []string{"authorization", "Accept-Language"},
 	})
 
@@ -65,7 +65,7 @@ func TestKeyBuilder_HeadersAreCanonicalized(t *testing.T) {
 
 	// Configuring with a lowercase header name must still match the
 	// canonicalized form Go puts in r.Header.
-	kb := newKeyBuilder(KeyConfig{IncludeHeaders: []string{"x-tenant-id"}})
+	kb := newKeyBuilder(keyConfig{IncludeHeaders: []string{"x-tenant-id"}})
 
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil)
 	r.Header.Set("X-Tenant-Id", "acme")
@@ -76,7 +76,7 @@ func TestKeyBuilder_HeadersAreCanonicalized(t *testing.T) {
 func TestKeyBuilder_MultiValueHeadersJoined(t *testing.T) {
 	t.Parallel()
 
-	kb := newKeyBuilder(KeyConfig{IncludeHeaders: []string{"X-Forwarded-For"}})
+	kb := newKeyBuilder(keyConfig{IncludeHeaders: []string{"X-Forwarded-For"}})
 
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil)
 	r.Header.Add("X-Forwarded-For", "10.0.0.1")
@@ -91,7 +91,7 @@ func TestKeyBuilder_MissingHeaderProducesEmptyValue(t *testing.T) {
 	// A header named in IncludeHeaders but absent from the request must
 	// still be in the key (with empty value) so its presence/absence is
 	// itself part of the cache identity.
-	kb := newKeyBuilder(KeyConfig{IncludeHeaders: []string{"X-Trace"}})
+	kb := newKeyBuilder(keyConfig{IncludeHeaders: []string{"X-Trace"}})
 
 	r := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil)
 	got := kb.build(r)

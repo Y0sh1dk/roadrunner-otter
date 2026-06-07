@@ -14,31 +14,45 @@ const (
 	defaultCacheMaxEntries = 10_000
 )
 
-// https://datatracker.ietf.org/doc/html/rfc7231#section-6.1
-var defaultCacheableStatuses = []int{
-	http.StatusOK, http.StatusNonAuthoritativeInfo, http.StatusNoContent, http.StatusPartialContent,
-	http.StatusMultipleChoices, http.StatusMovedPermanently, http.StatusPermanentRedirect,
-	http.StatusNotFound, http.StatusMethodNotAllowed, http.StatusGone, http.StatusRequestURITooLong,
-	http.StatusNotImplemented,
+var (
+	// https://datatracker.ietf.org/doc/html/rfc7231#section-6.1
+	defaultCacheableStatuses = []int{
+		http.StatusOK,
+		http.StatusNonAuthoritativeInfo,
+		http.StatusNoContent,
+		http.StatusPartialContent,
+		http.StatusMultipleChoices,
+		http.StatusMovedPermanently,
+		http.StatusPermanentRedirect,
+		http.StatusNotFound,
+		http.StatusMethodNotAllowed,
+		http.StatusGone,
+		http.StatusRequestURITooLong,
+		http.StatusNotImplemented,
+	}
+
+	// https://datatracker.ietf.org/doc/html/rfc7231#section-4.2.3
+	defaultCacheableMethods = []string{
+		http.MethodGet,
+		http.MethodHead,
+	}
+)
+
+type config struct {
+	Paths []pathConfig `mapstructure:"paths"`
 }
 
-var defaultCacheableMethods = []string{http.MethodGet, http.MethodHead}
-
-type Config struct {
-	Paths []PathConfig `mapstructure:"paths"`
-}
-
-type PathConfig struct {
+type pathConfig struct {
 	Pattern  string      `mapstructure:"pattern"`
 	Name     string      `mapstructure:"name"` // optional metrics label; falls back to Pattern
 	Disabled bool        `mapstructure:"disabled"`
 	Methods  []string    `mapstructure:"methods"`
-	Cache    CacheConfig `mapstructure:"cache"`
+	Cache    cacheConfig `mapstructure:"cache"`
 }
 
-// Label returns the value used in Prometheus `path` labels. It is the
+// label returns the value used in Prometheus `path` labels. It is the
 // user-supplied Name if set, otherwise the raw regex Pattern.
-func (p PathConfig) Label() string {
+func (p pathConfig) label() string {
 	if p.Name != "" {
 		return p.Name
 	}
@@ -46,7 +60,7 @@ func (p PathConfig) Label() string {
 	return p.Pattern
 }
 
-type CacheConfig struct {
+type cacheConfig struct {
 	// TTL is how long a cached response is served before re-fetching.
 	// Required for non-disabled entries — there is no default, set it
 	// explicitly per path. Use a YAML duration string ("5s", "1m", "100ms").
@@ -66,14 +80,18 @@ type CacheConfig struct {
 	// proxied through. Default: RFC 7231 §6.1 cacheable-by-default set.
 	Statuses []int `mapstructure:"statuses"`
 
-	Key KeyConfig `mapstructure:"key"`
+	// KeyConfig is the configuration for how cache keys are built.
+	KeyConfig keyConfig `mapstructure:"key"`
 }
 
-type KeyConfig struct {
+type keyConfig struct {
+	// IncludeHeaders is the list of request headers to include in cache key.
 	IncludeHeaders []string `mapstructure:"include_headers"`
+	// IncludeQuery indicates whether to include the URL query string in the cache key.
+	IncludeQuery bool `mapstructure:"include_query"`
 }
 
-func (c *Config) InitDefaults() {
+func (c *config) initDefaults() {
 	for i := range c.Paths {
 		p := &c.Paths[i]
 
@@ -101,13 +119,19 @@ func (c *Config) InitDefaults() {
 			p.Cache.MaxEntries = defaultCacheMaxEntries
 		}
 
+		// Default cacheable statuses
 		if p.Cache.Statuses == nil {
 			p.Cache.Statuses = slices.Clone(defaultCacheableStatuses)
+		}
+
+		// Default key config
+		if p.Cache.KeyConfig.IncludeHeaders == nil && !p.Cache.KeyConfig.IncludeQuery {
+			p.Cache.KeyConfig = keyConfig{}
 		}
 	}
 }
 
-func (c *Config) Validate() error {
+func (c *config) validate() error {
 	for i, p := range c.Paths {
 		if err := validatePath(i, p); err != nil {
 			return err
@@ -117,32 +141,30 @@ func (c *Config) Validate() error {
 	return validateUniqueLabels(c.Paths)
 }
 
-func validateUniqueLabels(paths []PathConfig) error {
+func validateUniqueLabels(paths []pathConfig) error {
 	seen := make(map[string]int, len(paths))
 
-	for i, p := range paths {
-		if p.Disabled {
+	for index, path := range paths {
+		if path.Disabled {
 			continue
 		}
 
-		label := p.Label()
+		label := path.label()
 
 		if prev, ok := seen[label]; ok {
 			return fmt.Errorf(
 				"otter: paths[%d] and paths[%d] resolve to the same metrics label %q; set a unique name",
-				prev, i, label,
+				prev, index, label,
 			)
 		}
 
-		seen[label] = i
+		seen[label] = index
 	}
 
 	return nil
 }
 
-// validatePath checks one PathConfig. Split out from Validate so each piece
-// stays readable and the cyclomatic-complexity linter doesn't yell.
-func validatePath(i int, p PathConfig) error {
+func validatePath(i int, p pathConfig) error {
 	// Empty regex
 	if strings.TrimSpace(p.Pattern) == "" {
 		return fmt.Errorf("otter: paths[%d]: pattern is required", i)
@@ -158,14 +180,17 @@ func validatePath(i int, p PathConfig) error {
 		return nil
 	}
 
+	// Methods are required
 	if len(p.Methods) == 0 {
 		return fmt.Errorf("otter: paths[%d]: methods is required (e.g. [\"GET\", \"HEAD\"])", i)
 	}
 
+	// No empty methods.
 	if slices.Contains(p.Methods, "") {
 		return fmt.Errorf("otter: paths[%d]: empty method in list", i)
 	}
 
+	// MaxBodyBytes cannot be negative. Zero means "use default".
 	if p.Cache.MaxBodyBytes < 0 {
 		return fmt.Errorf("otter: paths[%d]: cache.max_body_bytes must be >= 0, got %d", i, p.Cache.MaxBodyBytes)
 	}
@@ -173,20 +198,24 @@ func validatePath(i int, p PathConfig) error {
 	return validatePathCache(i, p)
 }
 
-// validatePathCache checks the cache-related fields of a PathConfig.
-func validatePathCache(i int, p PathConfig) error {
+// validatePathCache checks the cache-related fields of a pathConfig.
+func validatePathCache(i int, p pathConfig) error {
+	// TTL is required and must be > 0.
 	if p.Cache.TTL <= 0 {
 		return fmt.Errorf("otter: paths[%d]: cache.ttl is required and must be > 0 (e.g. \"5s\")", i)
 	}
 
+	// MaxEntries cannot be negative. Zero means "use default".
 	if p.Cache.MaxEntries < 0 {
 		return fmt.Errorf("otter: paths[%d]: cache.max_entries must be >= 0, got %d", i, p.Cache.MaxEntries)
 	}
 
+	// Statuses must contain at least one valid HTTP status code.
 	if len(p.Cache.Statuses) == 0 {
 		return fmt.Errorf("otter: paths[%d]: cache.statuses must contain at least one status code", i)
 	}
 
+	// Status codes must be in valid range.
 	for _, code := range p.Cache.Statuses {
 		if code < 100 || code > 599 {
 			return fmt.Errorf("otter: paths[%d]: cache.statuses contains invalid HTTP status %d (must be 100-599)", i, code)

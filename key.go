@@ -5,27 +5,33 @@ import (
 	"strings"
 )
 
+const (
+	unitSeparator = '\x1f'
+)
+
 type keyBuilder struct {
 	includeHeaders []string // canonicalized header names
+	includeQuery   bool     // whether to include the URL query string in the key
 }
 
-func newKeyBuilder(cfg KeyConfig) *keyBuilder {
+func newKeyBuilder(cfg keyConfig) *keyBuilder {
 	canon := make([]string, len(cfg.IncludeHeaders))
 	for i, h := range cfg.IncludeHeaders {
 		canon[i] = http.CanonicalHeaderKey(strings.TrimSpace(h))
 	}
 
-	return &keyBuilder{includeHeaders: canon}
+	return &keyBuilder{includeHeaders: canon, includeQuery: cfg.IncludeQuery}
 }
 
 func (kb *keyBuilder) build(r *http.Request) string {
-	// RequestURI is path + "?query" (or just path when there's no query),
-	// which is what most users mean by "path" colloquially. Using just
-	// URL.Path would cause /feed?page=1 and /feed?page=2 to collide.
-	uri := r.URL.RequestURI()
+	// RequestURI is path + "?query" (or just path when there's no query).
+	uri := r.URL.Path
+	if kb.includeQuery {
+		uri = r.URL.RequestURI()
+	}
 
+	// No headers to include.
 	if len(kb.includeHeaders) == 0 {
-		// Fast path: most common shape (no header-based keying).
 		var sb strings.Builder
 
 		sb.Grow(len(r.Method) + 1 + len(uri))
@@ -44,7 +50,7 @@ func (kb *keyBuilder) build(r *http.Request) string {
 	sb.WriteString(uri)
 
 	for _, h := range kb.includeHeaders {
-		sb.WriteByte('\x1f') // unit separator — unlikely to appear in header values
+		sb.WriteByte(unitSeparator)
 		sb.WriteString(h)
 		sb.WriteByte('=')
 

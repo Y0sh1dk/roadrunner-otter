@@ -15,20 +15,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeConfigurer is a minimal Configurer for plugin tests.
-type fakeConfigurer struct {
+// fakeconfigurer is a minimal configurer for plugin tests.
+type fakeconfigurer struct {
 	section string
-	cfg     *Config
+	cfg     *config
 }
 
-func (f *fakeConfigurer) Has(name string) bool { return f.cfg != nil && name == f.section }
+func (f *fakeconfigurer) Has(name string) bool { return f.cfg != nil && name == f.section }
 
-func (f *fakeConfigurer) UnmarshalKey(name string, out any) error {
+func (f *fakeconfigurer) UnmarshalKey(name string, out any) error {
 	if name != f.section || f.cfg == nil {
 		return fmt.Errorf("no config for %q", name)
 	}
 
-	dst, ok := out.(*Config)
+	dst, ok := out.(*config)
 	if !ok {
 		return fmt.Errorf("unexpected target type %T", out)
 	}
@@ -38,14 +38,14 @@ func (f *fakeConfigurer) UnmarshalKey(name string, out any) error {
 	return nil
 }
 
-func newPluginForTest(t *testing.T, cfg *Config) *Plugin {
+func newPluginForTest(t *testing.T, cfg *config) *Plugin {
 	t.Helper()
 
 	p := &Plugin{}
 
-	var c Configurer
+	var c configurer
 	if cfg != nil {
-		c = &fakeConfigurer{section: PluginName, cfg: cfg}
+		c = &fakeconfigurer{section: pluginName, cfg: cfg}
 	}
 
 	require.NoError(t, p.Init(c, nil))
@@ -58,14 +58,14 @@ func newPluginForTest(t *testing.T, cfg *Config) *Plugin {
 // stays fast if we add one.
 const testTTL = 5 * time.Minute
 
-// catchAll returns a Config with a single "^.*$" path entry covering both
+// catchAll returns a pluginConfig with a single "^.*$" path entry covering both
 // safe methods. Used by tests that just want "the middleware engages for
 // every request, default cap & header.".
-func catchAll() *Config {
-	return &Config{Paths: []PathConfig{{
+func catchAll() *config {
+	return &config{Paths: []pathConfig{{
 		Pattern: "^.*$",
 		Methods: []string{"GET", "HEAD"},
-		Cache:   CacheConfig{TTL: testTTL},
+		Cache:   cacheConfig{TTL: testTTL},
 	}}}
 }
 
@@ -75,11 +75,11 @@ func TestPlugin_Init_DefaultsAppliedPerEntry(t *testing.T) {
 	// Verify the defaulting pass: an entry that only sets the required
 	// pattern + cache.ttl picks up methods, max_body_bytes, max_entries
 	// from InitDefaults.
-	p := newPluginForTest(t, &Config{
-		Paths: []PathConfig{{
+	p := newPluginForTest(t, &config{
+		Paths: []pathConfig{{
 			Pattern: "^/.*",
 			Methods: []string{"GET"},
-			Cache:   CacheConfig{TTL: testTTL},
+			Cache:   cacheConfig{TTL: testTTL},
 		}},
 	})
 	require.Len(t, p.config.Paths, 1)
@@ -93,10 +93,10 @@ func TestPlugin_Init_MethodsDefaultedWhenOmitted(t *testing.T) {
 
 	// An active entry with no Methods picks up the safe-cacheable default
 	// (GET + HEAD) rather than failing validation.
-	p := newPluginForTest(t, &Config{
-		Paths: []PathConfig{{
+	p := newPluginForTest(t, &config{
+		Paths: []pathConfig{{
 			Pattern: "^/.*",
-			Cache:   CacheConfig{TTL: testTTL},
+			Cache:   cacheConfig{TTL: testTTL},
 		}},
 	})
 	assert.Equal(t, []string{http.MethodGet, http.MethodHead}, p.config.Paths[0].Methods)
@@ -107,20 +107,20 @@ func TestPlugin_Init_DisabledEntryNeedsNoMethods(t *testing.T) {
 
 	// A disabled entry doesn't use Methods; validation must allow it.
 	p := &Plugin{}
-	cfg := &fakeConfigurer{section: PluginName, cfg: &Config{
-		Paths: []PathConfig{{Pattern: "^/admin/", Disabled: true}},
+	cfg := &fakeconfigurer{section: pluginName, cfg: &config{
+		Paths: []pathConfig{{Pattern: "^/admin/", Disabled: true}},
 	}}
 	require.NoError(t, p.Init(cfg, nil))
 }
 
-func TestPlugin_Init_AppliesPerPathConfig(t *testing.T) {
+func TestPlugin_Init_AppliesPerpathConfig(t *testing.T) {
 	t.Parallel()
 
-	p := newPluginForTest(t, &Config{
-		Paths: []PathConfig{{
+	p := newPluginForTest(t, &config{
+		Paths: []pathConfig{{
 			Pattern: "^/.*",
 			Methods: []string{"get", "post"},
-			Cache:   CacheConfig{TTL: testTTL, MaxBodyBytes: 1024},
+			Cache:   cacheConfig{TTL: testTTL, MaxBodyBytes: 1024},
 		}},
 	})
 	got := p.config.Paths[0]
@@ -137,7 +137,7 @@ func TestPlugin_Init_NoPathsIsNoop(t *testing.T) {
 
 	// Empty Paths = middleware is wired but does nothing. This is allowed
 	// but unusual; the middleware should pass every request through.
-	p := newPluginForTest(t, &Config{})
+	p := newPluginForTest(t, &config{})
 
 	var calls int
 
@@ -156,7 +156,7 @@ func TestPlugin_Name(t *testing.T) {
 	t.Parallel()
 
 	p := &Plugin{}
-	assert.Equal(t, PluginName, p.Name())
+	assert.Equal(t, pluginName, p.Name())
 }
 
 // TestPlugin_CoalescesConcurrentRequests verifies the core promise: N
@@ -330,11 +330,11 @@ func TestPlugin_SerialRequestsHitCache(t *testing.T) {
 func TestPlugin_OversizedResponseReturns502(t *testing.T) {
 	t.Parallel()
 
-	p := newPluginForTest(t, &Config{
-		Paths: []PathConfig{{
+	p := newPluginForTest(t, &config{
+		Paths: []pathConfig{{
 			Pattern: "^.*$",
 			Methods: []string{"GET", "HEAD"},
-			Cache:   CacheConfig{TTL: testTTL, MaxBodyBytes: 16},
+			Cache:   cacheConfig{TTL: testTTL, MaxBodyBytes: 16},
 		}},
 	})
 
@@ -350,24 +350,24 @@ func TestPlugin_OversizedResponseReturns502(t *testing.T) {
 	assert.Equal(t, http.StatusBadGateway, rr.Code)
 }
 
-func TestConfig_Validate(t *testing.T) {
+func TestConfigValidate(t *testing.T) {
 	t.Parallel()
 
-	c := &Config{Paths: []PathConfig{{
+	c := &config{Paths: []pathConfig{{
 		Pattern: "^/x",
 		Methods: []string{"GET"},
-		Cache:   CacheConfig{TTL: testTTL, MaxBodyBytes: -1},
+		Cache:   cacheConfig{TTL: testTTL, MaxBodyBytes: -1},
 	}}}
-	c.InitDefaults()
-	err := c.Validate()
+	c.initDefaults()
+	err := c.validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cache.max_body_bytes")
 
 	// InitDefaults uppercases an empty string, which is still empty —
 	// Validate must catch it.
-	c = &Config{Paths: []PathConfig{{Pattern: "^/x", Methods: []string{""}, Cache: CacheConfig{TTL: testTTL}}}}
-	c.InitDefaults()
-	err = c.Validate()
+	c = &config{Paths: []pathConfig{{Pattern: "^/x", Methods: []string{""}, Cache: cacheConfig{TTL: testTTL}}}}
+	c.initDefaults()
+	err = c.validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "empty method")
 }
