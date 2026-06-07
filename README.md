@@ -18,6 +18,7 @@ Use it in front of hot, idempotent endpoints to reduce latency by caching respon
 
 - [Usage](#usage)
 - [Configuration](#configuration)
+  - [Cache Key](#cache-key)
 - [Install](#install)
 - [Metrics](#metrics)
 - [Develop](#develop)
@@ -104,6 +105,34 @@ entry pass straight through.
 | `cache.statuses` | `[200, 203, 204, 206, 300, 301, 308, 404, 405, 410, 414, 501]` | [RFC7231](https://datatracker.ietf.org/doc/html/rfc7231#section-6.1) |
 | `cache.key.include_headers` | `[]` | Headers to include in the cache key |
 
+### Cache Key
+
+By default, the cache key contains the request path, query string, and method. If `cache.key.include_headers` is set, the specified headers are also included in the key. Header names are canonicalized (e.g. `accept-language` → `Accept-Language`) but values are not modified. The key is built by concatenating these components, headers use unit separators (`\x1f`) to avoid ambiguity.
+
+For example, with the following config:
+
+```yaml
+- pattern: "^/api/v1/me$"
+  name: me
+  cache:
+    ttl: 5m
+    key:
+      include_headers: [Authorization]
+```
+
+A request like
+
+```
+GET /api/v1/me?verbose=true HTTP/1.1
+Host: example.com
+Authorization: Bearer abc123
+```
+
+would produce the following cache key:
+
+```
+GET /api/v1/me?verbose=true\x1fAuthorization=Bearer abc123
+```
 
 ## Install
 Build a custom RoadRunner binary with
