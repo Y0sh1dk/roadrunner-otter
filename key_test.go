@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestKeyBuilder_MethodAndPathOnly(t *testing.T) {
+func TestKeyBuilder_MethodAndRequestURI(t *testing.T) {
 	t.Parallel()
 
 	kb := newKeyBuilder(keyConfig{})
@@ -21,8 +21,8 @@ func TestKeyBuilder_MethodAndPathOnly(t *testing.T) {
 func TestKeyBuilder_QueryStringIncluded(t *testing.T) {
 	t.Parallel()
 
-	// /feed?page=1 and /feed?page=2 MUST NOT collide. This is the headline
-	// safety property of including the query in the key.
+	// /feed?page=1 and /feed?page=2 MUST NOT collide — the query is part
+	// of the cache key. This is the headline safety property.
 	kb := newKeyBuilder(keyConfig{})
 
 	r1 := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/feed?page=1", nil)

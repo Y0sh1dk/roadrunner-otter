@@ -11,7 +11,6 @@ const (
 
 type keyBuilder struct {
 	includeHeaders []string // canonicalized header names
-	includeQuery   bool     // whether to include the URL query string in the key
 }
 
 func newKeyBuilder(cfg keyConfig) *keyBuilder {
@@ -20,15 +19,11 @@ func newKeyBuilder(cfg keyConfig) *keyBuilder {
 		canon[i] = http.CanonicalHeaderKey(strings.TrimSpace(h))
 	}
 
-	return &keyBuilder{includeHeaders: canon, includeQuery: cfg.IncludeQuery}
+	return &keyBuilder{includeHeaders: canon}
 }
 
 func (kb *keyBuilder) build(r *http.Request) string {
-	// RequestURI is path + "?query" (or just path when there's no query).
-	uri := r.URL.Path
-	if kb.includeQuery {
-		uri = r.URL.RequestURI()
-	}
+	uri := r.URL.RequestURI()
 
 	// No headers to include.
 	if len(kb.includeHeaders) == 0 {

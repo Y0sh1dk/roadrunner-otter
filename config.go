@@ -87,8 +87,6 @@ type cacheConfig struct {
 type keyConfig struct {
 	// IncludeHeaders is the list of request headers to include in cache key.
 	IncludeHeaders []string `mapstructure:"include_headers"`
-	// IncludeQuery indicates whether to include the URL query string in the cache key.
-	IncludeQuery bool `mapstructure:"include_query"`
 }
 
 func (c *config) initDefaults() {
@@ -122,11 +120,6 @@ func (c *config) initDefaults() {
 		// Default cacheable statuses
 		if p.Cache.Statuses == nil {
 			p.Cache.Statuses = slices.Clone(defaultCacheableStatuses)
-		}
-
-		// Default key config
-		if p.Cache.KeyConfig.IncludeHeaders == nil && !p.Cache.KeyConfig.IncludeQuery {
-			p.Cache.KeyConfig = keyConfig{}
 		}
 	}
 }

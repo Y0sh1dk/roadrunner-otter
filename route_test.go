@@ -107,8 +107,8 @@ func TestRouteTable_PerEntryDefaultsApplied(t *testing.T) {
 	require.NotNil(t, r.cache, "cache should be initialised for active routes")
 
 	// RFC 7234 default: 200 IS cacheable, 502 is NOT.
-	assert.True(t, r.isCacheable(http.StatusOK))
-	assert.False(t, r.isCacheable(http.StatusBadGateway))
+	assert.True(t, r.isCacheable(&snapshot{status: http.StatusOK}))
+	assert.False(t, r.isCacheable(&snapshot{status: http.StatusBadGateway}))
 }
 
 // TestRouteTable_PerEntryFieldsCarryThrough verifies user-set fields land on
