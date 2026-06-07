@@ -10,8 +10,12 @@ import (
 	"github.com/maypok86/otter/v2/stats"
 )
 
+type routeTable struct {
+	routes []*compiledRoute
+}
+
 type compiledRoute struct {
-	re       *regexp.Regexp
+	regex    *regexp.Regexp
 	disabled bool
 	label    string // metrics label (Name if set, else Pattern)
 
@@ -22,52 +26,50 @@ type compiledRoute struct {
 	cache         *otter.Cache[string, *snapshot]
 }
 
-// isCacheable returns true if a response with the given status code should
-// be stored in the cache. Called once per upstream completion.
-func (r *compiledRoute) isCacheable(status int) bool {
-	return slices.Contains(r.cacheStatuses, status)
-}
-
-func (r *compiledRoute) acceptsMethod(method string) bool {
-	return slices.Contains(r.methods, method)
-}
-
-type routeTable struct {
-	routes []*compiledRoute
+func (r *compiledRoute) isCacheable(s *snapshot) bool {
+	// Only condition is response status currently.
+	return slices.Contains(r.cacheStatuses, s.status)
 }
 
 func (t *routeTable) match(req *http.Request) (*compiledRoute, bool) {
-	for _, rt := range t.routes {
-		if rt.re.MatchString(req.URL.Path) {
-			if rt.disabled {
+	for _, route := range t.routes {
+		// Matches regex.
+		if route.regex.MatchString(req.URL.Path) {
+			// Route is disabled.
+			if route.disabled {
 				return nil, false
 			}
 
-			return rt, true
+			// Request method is cachable.
+			if slices.Contains(route.methods, req.Method) {
+				return route, true
+			}
 		}
 	}
 
+	// No match or route disabled.
 	return nil, false
 }
 
-func buildRouteTable(cfg *Config) (*routeTable, error) {
+func buildRouteTable(cfg *config) (*routeTable, error) {
 	routeTable := &routeTable{}
 
+	// Build compiled routes from config.
 	for index, path := range cfg.Paths {
-		re, err := regexp.Compile(path.Pattern)
+		regex, err := regexp.Compile(path.Pattern)
 		if err != nil {
 			return nil, fmt.Errorf("otter: paths[%d]: invalid pattern %q: %w", index, path.Pattern, err)
 		}
 
 		route := &compiledRoute{
-			re:       re,
+			regex:    regex,
 			disabled: path.Disabled,
-			label:    path.Label(),
+			label:    path.label(),
 		}
 
 		if !path.Disabled {
 			route.methods = path.Methods
-			route.kb = newKeyBuilder(path.Cache.Key)
+			route.kb = newKeyBuilder(path.Cache.KeyConfig)
 			route.maxBodyBytes = path.Cache.MaxBodyBytes
 			route.cacheStatuses = path.Cache.Statuses
 			route.cache = otter.Must(&otter.Options[string, *snapshot]{
@@ -77,6 +79,7 @@ func buildRouteTable(cfg *Config) (*routeTable, error) {
 			})
 		}
 
+		// Append to route table in same order as defined, no ordering.
 		routeTable.routes = append(routeTable.routes, route)
 	}
 

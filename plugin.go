@@ -12,45 +12,43 @@ import (
 	"go.uber.org/zap/exp/zapslog"
 )
 
-const PluginName = "otter"
+const pluginName = "otter"
 
-// Configurer provides access to the application configuration.
-type Configurer interface {
-	// UnmarshalKey takes a single key and unmarshal it into a Struct.
+type configurer interface {
 	UnmarshalKey(name string, out any) error
-	// Has checks if a config section exists.
 	Has(name string) bool
 }
 
-// Logger is the dependency RoadRunner's logger plugin satisfies. RR returns
-// *zap.Logger; we adapt to slog at the Init boundary so the rest of this
-// package can stay on the stdlib logger.
-type Logger interface {
+type logger interface {
 	NamedLogger(name string) *zap.Logger
 }
 
 type Plugin struct {
-	config *Config
+	config *config
 	log    *slog.Logger
 	routes *routeTable
 }
 
-func (p *Plugin) Init(cfg Configurer, log Logger) error {
-	p.config = &Config{}
+func (p *Plugin) Init(cfg configurer, log logger) error {
+	p.config = &config{}
 
-	if cfg != nil && cfg.Has(PluginName) { // .rr.yaml has `otter:`
-		err := cfg.UnmarshalKey(PluginName, p.config)
+	// .rr.yaml has `otter:` top-level key.
+	if cfg != nil && cfg.Has(pluginName) {
+		err := cfg.UnmarshalKey(pluginName, p.config)
 		if err != nil {
 			return fmt.Errorf("otter: unmarshal config: %w", err)
 		}
 	}
 
-	p.config.InitDefaults()
+	// Set defaults for any missing config values.
+	p.config.initDefaults()
 
-	if err := p.config.Validate(); err != nil {
+	// Validate config values, error if invalid.
+	if err := p.config.validate(); err != nil {
 		return err
 	}
 
+	// Build route table from config.
 	rt, err := buildRouteTable(p.config)
 	if err != nil {
 		return err
@@ -58,8 +56,9 @@ func (p *Plugin) Init(cfg Configurer, log Logger) error {
 
 	p.routes = rt
 
+	// Initialize logger. If no logger provided, use a no-op logger.
 	if log != nil {
-		p.log = slog.New(zapslog.NewHandler(log.NamedLogger(PluginName).Core()))
+		p.log = slog.New(zapslog.NewHandler(log.NamedLogger(pluginName).Core()))
 	} else {
 		p.log = slog.New(slog.DiscardHandler)
 	}
@@ -68,48 +67,62 @@ func (p *Plugin) Init(cfg Configurer, log Logger) error {
 }
 
 func (p *Plugin) Name() string {
-	return PluginName
+	return pluginName
 }
 
 func (p *Plugin) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		route, enabled := p.routes.match(r)
-		if !enabled || !route.acceptsMethod(r.Method) {
+		// No match or route disabled
+		if !enabled {
 			next.ServeHTTP(w, r)
 
 			return
 		}
 
+		// Create cache key based on route cache config.
 		key := route.kb.build(r)
 
-		snapshot, err := route.cache.Get(r.Context(), key, otter.LoaderFunc[string, *snapshot](
+		responseSnapshot, err := route.cache.Get(r.Context(), key, otter.LoaderFunc[string, *snapshot](
 			func(_ context.Context, _ string) (*snapshot, error) {
-				rec := newRecorder(route.maxBodyBytes)
-				next.ServeHTTP(rec, r)
+				// Create recorder to capture upstream response
+				recorder := newRecorder(route.maxBodyBytes)
 
-				if rec.err != nil {
-					return nil, rec.err
+				// Call upstream handler
+				next.ServeHTTP(recorder, r)
+
+				// Recorder can error if response breaks constraints.
+				if recorder.err != nil {
+					return nil, recorder.err
 				}
 
-				s := rec.snapshot()
-				if !route.isCacheable(s.status) {
+				// Create snapshot from recorder response to store in cache.
+				s := recorder.snapshot()
+
+				// Not cachable.
+				if !route.isCacheable(s) {
 					return s, errSkipCache
 				}
 
+				// Cachable.
 				return s, nil
 			},
 		))
 
 		switch {
 		case errors.Is(err, errSkipCache):
-			writeSnapshot(w, snapshot)
+			// Response not cachable, return upstream response without caching.
+			writeSnapshot(w, responseSnapshot)
 		case errors.Is(err, errResponseTooLarge):
+			// Upstream response exceeded max body size, log and return 502.
 			p.log.Warn("response exceeded max_body_bytes; cannot cache", slog.String("key", key))
 			http.Error(w, "upstream response too large to cache", http.StatusBadGateway)
 		case err != nil:
+			// Unexpected error, return 502.
 			http.Error(w, err.Error(), http.StatusBadGateway)
 		default:
-			writeSnapshot(w, snapshot)
+			// Cache hit, return cached response.
+			writeSnapshot(w, responseSnapshot)
 		}
 	})
 }

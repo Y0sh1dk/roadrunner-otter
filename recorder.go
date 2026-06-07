@@ -9,9 +9,6 @@ import (
 
 var errResponseTooLarge = errors.New("otter: upstream response exceeded max_body_bytes")
 
-// snapshot is the buffered upstream response that gets stored in the
-// per-route otter cache and replayed to every cache hit / coalesced
-// waiter for the same key.
 type snapshot struct {
 	status int
 	header http.Header
@@ -19,7 +16,6 @@ type snapshot struct {
 }
 
 // recorder is an http.ResponseWriter that buffers the upstream response.
-// It enforces a max body size to prevent unbounded buffering.
 type recorder struct {
 	header      http.Header
 	buf         bytes.Buffer
