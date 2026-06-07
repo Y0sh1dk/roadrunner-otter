@@ -1,3 +1,17 @@
+<br />
+<div align="center">
+  <a href="https://github.com/Y0sh1dk/roadrunner-otter">
+    <img src="docs/images/logo.svg" alt="roadrunner-otter" height="300">
+  </a>
+
+  <h3 align="center">roadrunner-otter</h3>
+
+  <p align="center">
+    <a href="https://github.com/maypok86/otter">Otter</a> HTTP middleware for RoadRunner.
+    <br />
+  </p>
+</div>
+
 # roadrunner-otter
 
 [RoadRunner](https://roadrunner.dev) HTTP middleware that caches and coalesces
