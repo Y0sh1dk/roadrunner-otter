@@ -56,7 +56,7 @@ func (r *recorder) Write(p []byte) (int, error) {
 		// can finish without erroring out — we stash the cap error on r.err
 		// and the middleware surfaces it after ServeHTTP returns. Returning
 		// (len(p), nil) here is intentional, not a missed error.
-		return len(p), nil
+		return len(p), nil //nolint:nilerr // see comment above
 	}
 
 	if r.maxBytes > 0 && int64(r.buf.Len())+int64(len(p)) > r.maxBytes {
