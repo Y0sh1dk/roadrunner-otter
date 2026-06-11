@@ -84,6 +84,8 @@ otter:
         max_entries: 500
         max_body_bytes: 67108864    # 64 MiB
         statuses: [200]
+        response:
+          remove_headers: [Set-Cookie]
         key:
           include_headers: [Authorization, Accept-Language]
 ```

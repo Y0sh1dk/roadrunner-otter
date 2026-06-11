@@ -99,6 +99,11 @@ func (p *Plugin) Middleware(next http.Handler) http.Handler {
 				// Create snapshot from recorder response to store in cache.
 				s := recorder.snapshot()
 
+				// Drop configured response headers before storing so they don't leak to subsequent cache hits.
+				for _, header := range route.stripHeaders {
+					s.header.Del(header)
+				}
+
 				// Not cachable.
 				if !route.isCacheable(s) {
 					return s, errSkipCache

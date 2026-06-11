@@ -82,11 +82,20 @@ type cacheConfig struct {
 
 	// KeyConfig is the configuration for how cache keys are built.
 	KeyConfig keyConfig `mapstructure:"key"`
+
+	// Response configuration before storing in cache.
+	Response responseConfig `mapstructure:"response"`
 }
 
 type keyConfig struct {
 	// IncludeHeaders is the list of request headers to include in cache key.
 	IncludeHeaders []string `mapstructure:"include_headers"`
+}
+
+type responseConfig struct {
+	// RemoveHeaders are response headers removed from the snapshot before it
+	// is stored. Header names are canonicalized at load time.
+	RemoveHeaders []string `mapstructure:"remove_headers"`
 }
 
 func (c *config) initDefaults() {
