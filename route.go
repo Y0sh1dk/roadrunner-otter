@@ -23,6 +23,7 @@ type compiledRoute struct {
 	kb            *keyBuilder
 	maxBodyBytes  int64
 	cacheStatuses []int
+	stripHeaders  []string
 	cache         *otter.Cache[string, *snapshot]
 }
 
@@ -72,6 +73,12 @@ func buildRouteTable(cfg *config) (*routeTable, error) {
 			route.kb = newKeyBuilder(path.Cache.KeyConfig)
 			route.maxBodyBytes = path.Cache.MaxBodyBytes
 			route.cacheStatuses = path.Cache.Statuses
+
+			route.stripHeaders = make([]string, len(path.Cache.Response.RemoveHeaders))
+			for index, header := range path.Cache.Response.RemoveHeaders {
+				route.stripHeaders[index] = http.CanonicalHeaderKey(header)
+			}
+
 			route.cache = otter.Must(&otter.Options[string, *snapshot]{
 				MaximumSize:      path.Cache.MaxEntries,
 				ExpiryCalculator: otter.ExpiryWriting[string, *snapshot](path.Cache.TTL),

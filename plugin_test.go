@@ -327,6 +327,52 @@ func TestPlugin_SerialRequestsHitCache(t *testing.T) {
 		"five identical requests within TTL should hit upstream once and serve four from cache")
 }
 
+func TestPlugin_StripHeadersDropsFromCachedResponse(t *testing.T) {
+	t.Parallel()
+
+	p := newPluginForTest(t, &config{
+		Paths: []pathConfig{{
+			Pattern: "^.*$",
+			Methods: []string{"GET"},
+			Cache: cacheConfig{
+				TTL: testTTL,
+				Response: responseConfig{
+					RemoveHeaders: []string{"set-cookie"},
+				},
+			},
+		}},
+	})
+
+	upstream := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Set-Cookie", "session=abc; Path=/")
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("hello"))
+	})
+
+	server := httptest.NewServer(p.Middleware(upstream))
+	t.Cleanup(server.Close)
+
+	// First call: cache miss; the upstream's Set-Cookie must be stripped
+	// before we hand the response to the caller.
+	resp1, err := http.DefaultClient.Get(server.URL + "/x") //nolint:noctx
+	require.NoError(t, err)
+
+	_ = resp1.Body.Close()
+
+	assert.Empty(t, resp1.Header.Values("Set-Cookie"), "miss: Set-Cookie should be stripped")
+	assert.Equal(t, "text/plain", resp1.Header.Get("Content-Type"), "other headers pass through")
+
+	// Second call: cache hit; the replayed snapshot must still not carry
+	// Set-Cookie (proves we stripped on store, not just on the way out).
+	resp2, err := http.DefaultClient.Get(server.URL + "/x") //nolint:noctx
+	require.NoError(t, err)
+
+	_ = resp2.Body.Close()
+
+	assert.Empty(t, resp2.Header.Values("Set-Cookie"), "hit: Set-Cookie must not reappear")
+}
+
 func TestPlugin_OversizedResponseReturns502(t *testing.T) {
 	t.Parallel()
 

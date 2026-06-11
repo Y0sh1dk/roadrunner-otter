@@ -18,6 +18,8 @@ otter:
         ttl: 1m
         max_entries: 1000
         max_body_bytes: 67108864
+        response:
+          remove_headers: [Set-Cookie]
         key:
           include_headers: [Authorization]
 
