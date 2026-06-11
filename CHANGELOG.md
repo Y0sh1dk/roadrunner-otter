@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.5](https://github.com/Y0sh1dk/roadrunner-otter/compare/v0.1.4...v0.1.5) (2026-06-11)
+
+
+### Features
+
+* Allow stripping headers from response ([#14](https://github.com/Y0sh1dk/roadrunner-otter/issues/14)) ([f7aa336](https://github.com/Y0sh1dk/roadrunner-otter/commit/f7aa33677bae71333cded21cd99cd1fdababfc2c))
+* Documentation update ([#12](https://github.com/Y0sh1dk/roadrunner-otter/issues/12)) ([414498d](https://github.com/Y0sh1dk/roadrunner-otter/commit/414498d7f314e11c018b72cc94d9d859a254a2b8))
+
 ## [0.1.4](https://github.com/Y0sh1dk/roadrunner-otter/compare/v0.1.3...v0.1.4) (2026-06-06)
 
 
