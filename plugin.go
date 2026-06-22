@@ -83,6 +83,11 @@ func (p *Plugin) Middleware(next http.Handler) http.Handler {
 		// Create cache key based on route cache config.
 		key := route.kb.build(r)
 
+		p.log.Debug("cache key built",
+			slog.String("route", route.label),
+			slog.String("key", key),
+		)
+
 		responseSnapshot, err := route.cache.Get(r.Context(), key, otter.LoaderFunc[string, *snapshot](
 			func(_ context.Context, _ string) (*snapshot, error) {
 				// Create recorder to capture upstream response
